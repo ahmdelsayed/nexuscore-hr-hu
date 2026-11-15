@@ -1,0 +1,13 @@
+document_id,employee_id,type,private_link,review_status,extraction_status
+DOC-ID--391,EMP-2026-391,National_ID,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\id_mockups\ID_001_Karim_Said.png,Received,Verified Non-sensitive Mockup
+DOC-DEG--391,EMP-2026-391,Qualification,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Degree_MSc_AI.pdf,Received,Complete
+DOC-ID--391,EMP-2026-391,National_ID,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\id_mockups\ID_004_Blurry_Unreadable.png,Needs Review,Blurry / Low Resolution - Verification Blocked
+DOC-CON--391,EMP-2026-391,Contract,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Contract_EMP001.pdf,Received,Complete
+DOC-DEG--391,EMP-2026-391,Qualification,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Degree_MSc_AI.pdf,Received,Complete
+DOC-ID--001,EMP-001,National_ID,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\id_mockups\ID_001_Karim_Said.png,Received,Verified Non-sensitive Mockup
+DOC-CON--001,EMP-001,Contract,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Contract_EMP001.pdf,Received,Complete
+DOC-DEG--001,EMP-001,Qualification,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Degree_MSc_AI.pdf,Received,Complete
+DOC-ID--003,EMP-003,National_ID,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\id_mockups\ID_003_Ahmed_Zaki.png,Received,Verified Non-sensitive Mockup
+DOC-DEG--003,EMP-003,Qualification,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Degree_BSc_ComputerScience.pdf,Received,Complete
+DOC-ID--003,EMP-003,National_ID,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\id_mockups\ID_003_Ahmed_Zaki.png,Received,Verified Non-sensitive Mockup
+DOC-DEG--003,EMP-003,Qualification,C:\Users\ahmed\Downloads\New folder (5)\Smart_HR_Operations_Hub\synthetic_dataset\onboarding_docs\Degree_BSc_ComputerScience.pdf,Received,Complete

@@ -1,0 +1,190 @@
+{
+  "name": "06 - Scheduled HR Reporting & Error Recovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "wf6-cron",
+      "name": "Daily 08:00 AM Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "readAll",
+        "sheetName": "Candidates"
+      },
+      "id": "wf6-get-candidates",
+      "name": "Query Candidates Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "readAll",
+        "sheetName": "Documents"
+      },
+      "id": "wf6-get-documents",
+      "name": "Query Documents Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "readAll",
+        "sheetName": "Requests"
+      },
+      "id": "wf6-get-requests",
+      "name": "Query Requests Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const candidates = $('Query Candidates Table').all() || [];\nconst documents = $('Query Documents Table').all() || [];\nconst requests = $('Query Requests Table').all() || [];\n\nconst newApps = candidates.filter(c => c.json.stage === 'Applied').length;\nconst underReview = candidates.filter(c => c.json.stage === 'Under Review').length;\nconst interviews = candidates.filter(c => c.json.stage === 'Interview').length;\nconst onboardingBlockers = documents.filter(d => d.json.review_status === 'Needs Review' || d.json.review_status === 'Missing').length;\nconst pendingCerts = requests.filter(r => r.json.status === 'Pending').length;\nconst failedReqs = requests.filter(r => r.json.status?.includes('Failed')).length;\n\nreturn {\n  summary_date: new Date().toISOString().split('T')[0],\n  metrics: {\n    new_applications: newApps,\n    candidates_under_review: underReview,\n    interviews_pending: interviews,\n    onboarding_blockers: onboardingBlockers,\n    certificates_pending_approval: pendingCerts,\n    failed_requests: failedReqs\n  },\n  status: 'AUDIT_COMPLETE'\n};"
+      },
+      "id": "wf6-aggregate",
+      "name": "Aggregate Operational HR Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "hr-management@nexuscore-tech.com",
+        "subject": "=Daily Operations Digest - {{ $json.summary_date }}",
+        "message": "=NexusCore Technologies - Daily Operations Digest\nDate: {{ $json.summary_date }}\n\nKey Metrics:\n- New Applications: {{ $json.metrics.new_applications }}\n- Candidates Under Review: {{ $json.metrics.candidates_under_review }}\n- Interviews Scheduled/Pending: {{ $json.metrics.interviews_pending }}\n- Onboarding Blockers (Missing/Blurry): {{ $json.metrics.onboarding_blockers }}\n- Certificates Awaiting HR Approval: {{ $json.metrics.certificates_pending_approval }}\n- Handled/Failed Requests: {{ $json.metrics.failed_requests }}\n\nPlease review pending approvals in the HR Portal."
+      },
+      "id": "wf6-send-digest",
+      "name": "Send HR Daily Digest Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const requests = $('Query Requests Table').all() || [];\nconst transientFailures = requests.filter(r => r.json.status === 'Transient_Failure_Eligible_Retry');\n\nreturn transientFailures.map(r => ({\n  request_id: r.json.request_id,\n  retry_count: (r.json.retry_count || 0) + 1,\n  max_retries: 3,\n  action: 'TRIGGER_RETRY'\n}));"
+      },
+      "id": "wf6-recovery",
+      "name": "Transient Failure Sweeper & Catch-Up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        480
+      ]
+    }
+  ],
+  "connections": {
+    "Daily 08:00 AM Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query Candidates Table",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Documents Table",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query Requests Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Candidates Table": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Operational HR Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Documents Table": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Operational HR Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Requests Table": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Operational HR Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Transient Failure Sweeper & Catch-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Operational HR Metrics": {
+      "main": [
+        [
+          {
+            "node": "Send HR Daily Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

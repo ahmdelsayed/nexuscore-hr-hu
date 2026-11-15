@@ -1,0 +1,264 @@
+{
+  "name": "01 - CV Intake & AI Extraction",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "cv-submit",
+        "formTitle": "NexusCore Technologies - Candidate Job Application",
+        "formDescription": "Please submit your resume and details to apply for an open position.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Full Name",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email Address",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Target Job ID",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "JD-101 (Senior AI/ML Engineer)"
+                  },
+                  {
+                    "option": "JD-102 (Full-Stack Python/React Developer)"
+                  },
+                  {
+                    "option": "JD-103 (HR Operations Specialist)"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Upload Resume (PDF/DOCX)",
+              "fieldType": "file",
+              "requiredField": true
+            }
+          ]
+        }
+      },
+      "id": "wf1-form-trigger",
+      "name": "Candidate Application Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "cond-filesize",
+              "leftValue": "={{ $binary.data.fileSize }}",
+              "rightValue": 10485760,
+              "operator": {
+                "type": "number",
+                "operation": "lessThanEqual"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf1-validate-file",
+      "name": "Validate File Size (< 10MB)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const appSuffix = Math.floor(1000 + Math.random() * 9000);\nconst appId = `APP-2026-${appSuffix}`;\n\nreturn {\n  application_id: appId,\n  candidate_name: $json['Full Name'],\n  email: $json['Email Address'],\n  job_id: $json['Target Job ID'].split(' ')[0],\n  timestamp: new Date().toISOString(),\n  stage: 'Applied'\n};"
+      },
+      "id": "wf1-gen-id",
+      "name": "Generate Unique Application ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data"
+      },
+      "id": "wf1-extract-text",
+      "name": "Extract Text from CV File",
+      "type": "n8n-nodes-base.readPDF",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Document Specialist Agent.\nExtract the candidate resume into strict structured JSON.\nText from CV:\n{{ $json.text }}\n\nReturn JSON: full_name, email, phone, education (list), skills (list), work_history (list), summary, confidence_score.\nDo NOT invent missing fields. If a field is missing, set to null.",
+        "hasOutputParser": true
+      },
+      "id": "wf1-doc-specialist",
+      "name": "Document Specialist Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Candidates",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "application_id": "={{ $('Generate Unique Application ID').item.json.application_id }}",
+            "job_id": "={{ $('Generate Unique Application ID').item.json.job_id }}",
+            "candidate_name": "={{ $json.output.full_name || $('Generate Unique Application ID').item.json.candidate_name }}",
+            "email": "={{ $json.output.email || $('Generate Unique Application ID').item.json.email }}",
+            "skills": "={{ $json.output.skills.join(', ') }}",
+            "cv_link": "drive/resumes/{{ $('Generate Unique Application ID').item.json.application_id }}.pdf",
+            "stage": "Applied",
+            "reviewed_by": "Pending HR Review"
+          }
+        }
+      },
+      "id": "wf1-append-candidate",
+      "name": "Save to Candidates Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1360,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "hr-recruiting@nexuscore-tech.com",
+        "subject": "=New Application Received: {{ $('Generate Unique Application ID').item.json.application_id }} - {{ $('Generate Unique Application ID').item.json.candidate_name }}",
+        "message": "=A new candidate application has been submitted and parsed.\n\nApplication ID: {{ $('Generate Unique Application ID').item.json.application_id }}\nCandidate: {{ $('Generate Unique Application ID').item.json.candidate_name }}\nTarget Role: {{ $('Generate Unique Application ID').item.json.job_id }}\nSkills Identified: {{ $json.output.skills.join(', ') }}\n\nView details in HR Candidates Sheet."
+      },
+      "id": "wf1-notify-hr",
+      "name": "Send Single HR Intake Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "Uploaded resume exceeds the maximum allowable limit (10MB) or format is invalid. Route to manual review.",
+        "errorDetails": "FILE_TOO_LARGE_OR_CORRUPT"
+      },
+      "id": "wf1-file-error",
+      "name": "Route to Manual Review Exception",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        680,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Candidate Application Form": {
+      "main": [
+        [
+          {
+            "node": "Validate File Size (< 10MB)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate File Size (< 10MB)": {
+      "main": [
+        [
+          {
+            "node": "Generate Unique Application ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route to Manual Review Exception",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Unique Application ID": {
+      "main": [
+        [
+          {
+            "node": "Extract Text from CV File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text from CV File": {
+      "main": [
+        [
+          {
+            "node": "Document Specialist Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Specialist Agent": {
+      "main": [
+        [
+          {
+            "node": "Save to Candidates Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Candidates Sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Single HR Intake Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

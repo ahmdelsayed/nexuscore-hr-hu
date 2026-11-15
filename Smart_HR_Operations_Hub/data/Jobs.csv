@@ -1,0 +1,4 @@
+job_id,title,required_skills,description_ref,status
+JD-101,Senior AI/ML Engineer,"Python, PyTorch, LangChain, RAG, FastAPI, Docker, Vector Databases",synthetic_dataset/job_descriptions/JD-101_Senior_AI_Engineer.md,Open
+JD-102,Full-Stack Python/React Developer,"Python, React, TypeScript, Node.js, PostgreSQL, REST APIs, Tailwind CSS",synthetic_dataset/job_descriptions/JD-102_Full_Stack_Developer.md,Open
+JD-103,HR Operations Specialist,"HRIS, Labor Law, Talent Acquisition, Employee Onboarding, Excel, Reporting",synthetic_dataset/job_descriptions/JD-103_HR_Operations_Specialist.md,Open

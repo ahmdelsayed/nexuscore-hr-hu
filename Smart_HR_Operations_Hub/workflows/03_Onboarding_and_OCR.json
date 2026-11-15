@@ -1,0 +1,264 @@
+{
+  "name": "03 - Employee Onboarding & Document OCR",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "onboarding-trigger",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "wf3-trigger",
+      "name": "Candidate Hired Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const empNum = Math.floor(100 + Math.random() * 900);\nconst empId = `EMP-2026-${empNum}`;\nreturn {\n  employee_id: empId,\n  name: $json.body.candidate_name,\n  role: $json.body.role || 'Software Engineer',\n  department: $json.body.department || 'Engineering',\n  start_date: new Date().toISOString().split('T')[0],\n  end_date: 'Present',\n  employment_status: 'Onboarding'\n};"
+      },
+      "id": "wf3-create-emp",
+      "name": "Assign Employee ID & Create Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "path": "onboarding-upload",
+        "formTitle": "NexusCore - Employee Onboarding Documents Intake",
+        "formDescription": "Please submit your onboarding documentation: National ID Mockup, Signed Contract, and Degree Certificate.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Employee ID",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "National ID Mockup (PNG/JPG)",
+              "fieldType": "file",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Signed Contract (PDF)",
+              "fieldType": "file",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Qualification Certificate (PDF)",
+              "fieldType": "file",
+              "requiredField": true
+            }
+          ]
+        }
+      },
+      "id": "wf3-doc-form",
+      "name": "Onboarding Multi-File Intake",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "wf3-loop-docs",
+      "name": "Loop Over Submitted Attachments",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const isBlurry = ($json.is_blurry === true || $json.fileName?.includes('Blurry'));\nconst isMissing = ($json.is_missing === true);\nlet status = 'Received';\nlet reviewStatus = 'Approved';\n\nif (isMissing) {\n  status = 'Missing';\n  reviewStatus = 'Missing';\n} else if (isBlurry) {\n  status = 'Received';\n  reviewStatus = 'Needs Review';\n}\n\nreturn {\n  document_id: `DOC-2026-${Math.floor(100 + Math.random() * 900)}`,\n  employee_id: $('Assign Employee ID & Create Record').item.json.employee_id,\n  doc_type: $json.doc_type || 'Synthetic_ID',\n  review_status: reviewStatus,\n  extraction_status: isBlurry ? 'Degraded / Unreadable' : 'Complete'\n};"
+      },
+      "id": "wf3-ocr-process",
+      "name": "Document Specialist & Vision OCR Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Documents",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "document_id": "={{ $json.document_id }}",
+            "employee_id": "={{ $json.employee_id }}",
+            "type": "={{ $json.doc_type }}",
+            "private_link": "drive/restricted/documents/{{ $json.document_id }}",
+            "review_status": "={{ $json.review_status }}",
+            "extraction_status": "={{ $json.extraction_status }}"
+          }
+        }
+      },
+      "id": "wf3-save-doc",
+      "name": "Record Document in Documents Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.review_status }}",
+              "value2": "Needs Review"
+            }
+          ]
+        }
+      },
+      "id": "wf3-check-status",
+      "name": "If Needs Review or Missing",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "hr-operations@nexuscore-tech.com",
+        "subject": "=Onboarding Exception Alert: Employee {{ $('Assign Employee ID & Create Record').item.json.employee_id }}",
+        "message": "=An onboarding document issue was identified.\n\nEmployee ID: {{ $('Assign Employee ID & Create Record').item.json.employee_id }}\nDocument ID: {{ $json.document_id }}\nStatus: {{ $json.review_status }}\nNote: Blurry scan or missing data detected. Manual review required."
+      },
+      "id": "wf3-alert-hr",
+      "name": "Alert HR of Onboarding Blocker",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "employee@nexuscore-tech.com",
+        "subject": "Welcome to NexusCore Technologies!",
+        "message": "Your onboarding documents have been verified and processed successfully. Welcome to the team!"
+      },
+      "id": "wf3-welcome-email",
+      "name": "Send Employee Welcome Message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1880,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Candidate Hired Trigger": {
+      "main": [
+        [
+          {
+            "node": "Assign Employee ID & Create Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Employee ID & Create Record": {
+      "main": [
+        [
+          {
+            "node": "Onboarding Multi-File Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Onboarding Multi-File Intake": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Submitted Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Submitted Attachments": {
+      "main": [
+        [
+          {
+            "node": "Document Specialist & Vision OCR Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Specialist & Vision OCR Node": {
+      "main": [
+        [
+          {
+            "node": "Record Document in Documents Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Document in Documents Table": {
+      "main": [
+        [
+          {
+            "node": "If Needs Review or Missing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Needs Review or Missing": {
+      "main": [
+        [
+          {
+            "node": "Alert HR of Onboarding Blocker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Employee Welcome Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

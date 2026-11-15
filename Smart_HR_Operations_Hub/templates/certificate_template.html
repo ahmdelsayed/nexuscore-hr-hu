@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Experience Certificate - NexusCore Technologies</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f8fafc;
+    margin: 0;
+    padding: 40px;
+    box-sizing: border-box;
+  }
+  .cert-container {
+    border: 8px double #1e3a8a;
+    padding: 40px 50px;
+    background: #ffffff;
+    position: relative;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  }
+  .watermark {
+    position: absolute;
+    top: 35%;
+    left: 20%;
+    font-size: 80px;
+    color: rgba(30, 58, 138, 0.05);
+    transform: rotate(-25deg);
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .header {
+    text-align: center;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+  }
+  .company-title {
+    font-size: 28px;
+    font-weight: 800;
+    color: #1e3a8a;
+    letter-spacing: 2px;
+    margin: 0;
+  }
+  .sub-title {
+    font-size: 14px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 5px;
+  }
+  .cert-heading {
+    text-align: center;
+    font-size: 24px;
+    color: #0f172a;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    margin: 25px 0;
+  }
+  .content {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #334155;
+    text-align: justify;
+    margin-bottom: 35px;
+  }
+  .emp-name {
+    font-weight: bold;
+    color: #1e3a8a;
+    font-size: 17px;
+    text-decoration: underline;
+  }
+  .details-table {
+    width: 100%;
+    margin: 20px 0;
+    border-collapse: collapse;
+  }
+  .details-table td {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    font-size: 14px;
+  }
+  .details-table td.label {
+    background-color: #f1f5f9;
+    font-weight: 600;
+    width: 25%;
+    color: #1e293b;
+  }
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+  }
+  .sig-block {
+    text-align: center;
+    width: 250px;
+  }
+  .sig-line {
+    border-top: 1px solid #475569;
+    margin-top: 40px;
+    margin-bottom: 5px;
+  }
+  .sig-name {
+    font-weight: bold;
+    color: #0f172a;
+    font-size: 14px;
+  }
+  .sig-title {
+    font-size: 12px;
+    color: #64748b;
+  }
+  .meta-tag {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 15px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+  <div class="cert-container">
+    <div class="watermark">NEXUSCORE VERIFIED</div>
+    <div class="header">
+      <h1 class="company-title">NEXUSCORE TECHNOLOGIES INC.</h1>
+      <div class="sub-title">People & Culture Operations &bull; Enterprise HR Verification</div>
+    </div>
+    
+    <div class="cert-heading">Certificate of Service & Experience</div>
+    
+    <div class="content">
+      This is to officially certify that <span class="emp-name">{{employee_name}}</span> was employed by NexusCore Technologies. During their tenure with our organization, they demonstrated exceptional professionalism, dedication, and technical competence.
+    </div>
+
+    <table class="details-table">
+      <tr>
+        <td class="label">Certificate Reference:</td>
+        <td>{{certificate_id}}</td>
+        <td class="label">Date of Issuance:</td>
+        <td>{{issue_date}}</td>
+      </tr>
+      <tr>
+        <td class="label">Verified Role / Title:</td>
+        <td>{{job_title}}</td>
+        <td class="label">Department:</td>
+        <td>{{department}}</td>
+      </tr>
+      <tr>
+        <td class="label">Employment Period:</td>
+        <td colspan="3">From <strong>{{start_date}}</strong> to <strong>{{end_date}}</strong></td>
+      </tr>
+    </table>
+
+    <div class="content" style="margin-top: 15px;">
+      This certificate is issued pursuant to the <em>NexusCore Experience Certificate Policy (POL-CRT-004)</em> upon official verification of personnel records and formal authorization by the Human Resources Directorate. We wish them continued success in their future career endeavors.
+    </div>
+
+    <div class="footer">
+      <div class="sig-block" style="text-align: left;">
+        <div style="font-size: 12px; color: #64748b;">HR Audit Verification Seal:</div>
+        <div style="border: 2px dashed #0284c7; padding: 6px; border-radius: 4px; display: inline-block; margin-top: 10px; color: #0284c7; font-size: 11px; font-weight: bold;">
+          [ DIGITALLY AUDITED &amp; RECORDED ]
+        </div>
+      </div>
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-name">{{approved_by}}</div>
+        <div class="sig-title">Authorized HR Reviewer / Operations Lead</div>
+      </div>
+    </div>
+
+    <div class="meta-tag">
+      System Generated Reference: {{certificate_id}} &bull; Verification Hash: SHA256-VERIFIED-AUTH
+    </div>
+  </div>
+</body>
+</html>

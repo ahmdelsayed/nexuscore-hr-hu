@@ -1,0 +1,188 @@
+{
+  "name": "04 - HR Policy Assistant (RAG Self-Service)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "hr-policy-chat",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "wf4-chat-trigger",
+      "name": "Employee Policy Query Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  question: $json.body.question,\n  employee_id: $json.body.employee_id || 'ANONYMOUS',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "wf4-sanitize",
+      "name": "Sanitize & Validate Employee Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "query": "={{ $json.question }}",
+        "topK": 3
+      },
+      "id": "wf4-vector-search",
+      "name": "Dense Vector Search (Qdrant/VectorDB)",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.similarity_score || 0.85 }}",
+              "value2": 0.5,
+              "operation": "largerEqual"
+            }
+          ]
+        }
+      },
+      "id": "wf4-check-match",
+      "name": "If Grounded Policy Passages Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Knowledge Specialist Agent.\nAnswer the employee query using ONLY the provided retrieved policy passages.\nQuery: {{ $('Sanitize & Validate Employee Query').item.json.question }}\nRetrieved Context: {{ $json.passages }}\n\nRULES:\n1. State answers clearly and concisely.\n2. You MUST cite the source document, section, and version in format: [Source: <filename>, Section: <section>, Version: <v>].\n3. Never invent answers.",
+        "hasOutputParser": true
+      },
+      "id": "wf4-rag-agent",
+      "name": "Knowledge Specialist Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  answer: 'I am sorry, but this inquiry is not covered by the indexed HR policies. Please contact the People Operations team at hr-ops@nexuscore-tech.com for assistance.',\n  citation: 'NONE',\n  status: 'ABSTAINED_REFER_TO_HR'\n};"
+      },
+      "id": "wf4-abstain",
+      "name": "Abstain & Redirect to HR Operations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "wf4-respond",
+      "name": "Return Grounded Answer with Citations",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Employee Policy Query Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sanitize & Validate Employee Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize & Validate Employee Query": {
+      "main": [
+        [
+          {
+            "node": "Dense Vector Search (Qdrant/VectorDB)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dense Vector Search (Qdrant/VectorDB)": {
+      "main": [
+        [
+          {
+            "node": "If Grounded Policy Passages Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Grounded Policy Passages Found": {
+      "main": [
+        [
+          {
+            "node": "Knowledge Specialist Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Abstain & Redirect to HR Operations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledge Specialist Agent": {
+      "main": [
+        [
+          {
+            "node": "Return Grounded Answer with Citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abstain & Redirect to HR Operations": {
+      "main": [
+        [
+          {
+            "node": "Return Grounded Answer with Citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

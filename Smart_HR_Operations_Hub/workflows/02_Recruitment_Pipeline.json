@@ -1,0 +1,264 @@
+{
+  "name": "02 - Recruitment Review & Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "recruitment-eval",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "id": "wf2-trigger",
+      "name": "Recruitment Review Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $json.body.email;\nconst jobId = $json.body.job_id;\n// Check duplicate candidate submission\nconst isDuplicate = ($json.body.is_duplicate === true);\n\nreturn {\n  application_id: $json.body.application_id,\n  job_id: jobId,\n  candidate_name: $json.body.candidate_name,\n  email: email,\n  cv_skills: $json.body.cv_skills || [],\n  is_duplicate: isDuplicate\n};"
+      },
+      "id": "wf2-duplicate-check",
+      "name": "Check Duplicate Application",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_duplicate }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "wf2-is-dup-if",
+      "name": "If Duplicate Detected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Candidates",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "stage": "Duplicate Detected",
+            "reviewed_by": "System Automated Check"
+          }
+        }
+      },
+      "id": "wf2-flag-duplicate",
+      "name": "Flag Candidate as Duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        920,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": "Jobs",
+        "filters": {
+          "job_id": "={{ $json.job_id }}"
+        }
+      },
+      "id": "wf2-fetch-job",
+      "name": "Fetch Target Job Description",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Recruitment Specialist Agent.\nEvaluate candidate CV evidence against the required Job Description skills.\nCandidate Skills: {{ $('Check Duplicate Application').item.json.cv_skills }}\nJob Requirements: {{ $json.required_skills }}\n\nIdentify matching skills with quotes, missing skills, and calculate match percentage.\nDO NOT reject or hire the candidate. Provide an objective summary for HR review.",
+        "hasOutputParser": true
+      },
+      "id": "wf2-recruitment-agent",
+      "name": "Recruitment Specialist Agent (Skill Gap)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "path": "hr-stage-action",
+        "formTitle": "HR Candidate Pipeline Decision",
+        "formDescription": "Review candidate evidence and select next recruitment stage. No candidate is moved without HR authorization.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Reviewer Name",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Action Decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Under Review"
+                  },
+                  {
+                    "option": "Interview"
+                  },
+                  {
+                    "option": "Offer"
+                  },
+                  {
+                    "option": "Hired"
+                  },
+                  {
+                    "option": "Closed"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Reviewer Notes",
+              "fieldType": "text",
+              "requiredField": false
+            }
+          ]
+        }
+      },
+      "id": "wf2-hr-approval",
+      "name": "HR Human Authorization Gate",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "AuditLogs",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_id": "=EVT-{{ $now.toMillis() }}",
+            "request_id": "={{ $('Check Duplicate Application').item.json.application_id }}",
+            "actor_role": "HR_Manager",
+            "action": "=STAGE_TRANSITION_{{ $json['Action Decision'] }}",
+            "timestamp": "={{ $now.toISO() }}",
+            "result": "Success",
+            "error_code": "NONE"
+          }
+        }
+      },
+      "id": "wf2-audit-log",
+      "name": "Record Action in AuditLogs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1640,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Recruitment Review Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Application": {
+      "main": [
+        [
+          {
+            "node": "If Duplicate Detected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Duplicate Detected": {
+      "main": [
+        [
+          {
+            "node": "Flag Candidate as Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Target Job Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Target Job Description": {
+      "main": [
+        [
+          {
+            "node": "Recruitment Specialist Agent (Skill Gap)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recruitment Specialist Agent (Skill Gap)": {
+      "main": [
+        [
+          {
+            "node": "HR Human Authorization Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR Human Authorization Gate": {
+      "main": [
+        [
+          {
+            "node": "Record Action in AuditLogs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

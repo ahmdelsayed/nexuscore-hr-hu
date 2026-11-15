@@ -1,0 +1,466 @@
+
+
+MODULE 6  •  EXPANDED CAPSTONE ASSIGNMENT
+SMART HR
+OPERATIONS HUB
+AI-Powered Employee Lifecycle Automation
+PROJECT FORMAT
+Team-based, working n8n system
+AUDIENCE
+Computer Science Students
+RECOMMENDED TEAM
+3–4 students
+SUGGESTED TIMELINE
+14 days
+6 CORE WORKFLOWS     •     3 OPTIONAL EXTENSIONS     •     100-POINT RUBRIC
+01   Business Challenge & Project Scope
+A fictional technology company wants to automate the employee lifecycle: receiving job applications, reviewing candidate evidence, onboarding new hires, answering policy questions, generating employment documents, and monitoring HR operations. Today, these processes are slow, fragmented, and heavily manual.
+Your mission is to design and build an integrated, working HR automation solution using n8n, AI agents, document extraction/OCR, a Retrieval-Augmented Generation (RAG) knowledge base, and connected business tools.
+PROJECT OUTCOME
+Show one connected business journey from applicant submission to reviewed hiring, employee onboarding, employee self-service, authorized certificate issuance, and routine HR reporting. The system must have clear human approval points and safe error handling.
+
+Core scope — mandatory for all teams
+#
+BUSINESS AREA
+EXPECTED BUSINESS OUTCOME
+1
+CV intake & AI extraction
+Turn an uploaded CV into a traceable structured application.
+2
+Recruitment pipeline
+Compare job requirements and candidate evidence; HR controls decisions.
+3
+Onboarding & OCR
+Track synthetic employee documents and flag missing or unreadable data.
+4
+HR policy assistant (RAG)
+Provide policy answers grounded in company documents.
+5
+Experience certificates
+Prepare an approved, branded certificate PDF from verified records.
+6
+Operations monitoring
+Send daily summaries and safely recover eligible failures.
+
+Required design principles
+•  Use n8n as the primary orchestration platform; a standalone full-stack website is not required.
+•  Make each agent responsible for one clear task; ordinary parsing, validation, and PDF export may remain deterministic nodes.
+•  Never allow an LLM alone to hire/reject a person, approve a leave request, or authorize an official document.
+•  Use fictional people and synthetic documents. The system is an educational prototype, not a production HR platform.
+02   Architecture, Roles & Agent Handoffs
+Recommended high-level data flow
+LAYER
+IMPLEMENTATION
+Input events
+Candidate form; internal HR form; employee question; certificate request; schedule trigger
+Routing
+Router Agent identifies intent, request type, role, and next workflow
+Specialists
+Document, Recruitment, Knowledge, and Certificate responsibilities as needed
+Control
+Deterministic field validation, Supervisor review, and explicit HR approval
+Outputs
+Google Sheets records, restricted Drive files, Gmail alerts, PDF, HR digest
+
+Minimum meaningful multi-agent requirement
+Implement at least four distinct AI agent roles: one Router, at least two task-specific Specialists, and one Supervisor or quality-review agent (approximately 4–6 in total). Each role must have a separate agent/model step with a documented system instruction, input/output contract, and tool boundary; naming four branches inside one general agent does not meet this requirement.
+ROLE
+RESPONSIBILITY
+BOUNDARY
+Router
+Classify request and pass a structured handoff
+Does not make hiring or approval decisions
+Document Specialist
+Normalize parsed CV/document information
+Must not invent missing fields
+Recruitment Specialist
+Compare CV evidence with job description
+Does not reject or rank people autonomously
+Knowledge Specialist
+Retrieve policy evidence and answer questions
+No answers without trustworthy cited evidence
+Certificate Specialist
+Build safe template fields and draft text
+Cannot release or sign a certificate
+Supervisor
+Check consistency and escalate questionable outputs
+Not a replacement for human authorization
+
+Shared state and handoff requirements
+•  Each request has a stable request_id, actor_role, request_type, status, owner, next_action, and audit timestamp.
+•  Agent handoffs specify input references, structured output schema, source evidence, tool permissions, uncertainties, and escalation conditions.
+•  All decisions that change application, employee, or certificate status must be recorded outside LLM memory.
+DESIGN CONSTRAINT
+The system must distinguish AI interpretation from business authorization. Agents may recommend a next step; only rules and authorized HR staff may complete restricted actions.
+03   Core Workflows — Recruitment
+WORKFLOW 1   |   CV Submission & AI Extraction
+A candidate uploads a resume to apply for a published role. The system captures the file, extracts usable information, and creates an application record.
+•  Create an n8n Form with candidate name, email, target job, and CV upload (PDF or DOCX).
+•  Check file type/size, assign a unique application_id, and store the original file in Drive.
+•  Extract text from normal PDFs and DOCX files using a suitable parser or converter; use OCR or Vision AI for image-only CVs.
+•  Produce validated JSON fields: contact details, education, skills, employment history, and concise summary.
+•  Write the record to Candidates Sheet and notify HR once, including links to the original CV and extracted summary.
+ACCEPTANCE CRITERION
+One valid upload creates one traceable candidate record and one HR notification; uncertain or absent information is clearly flagged.
+
+Failure path: Unsupported or unreadable files must be routed to manual review instead of being silently accepted.
+WORKFLOW 2   |   Recruitment Review & Pipeline
+HR compares a candidate profile against a specific job description, reviews evidence, and controls each hiring status change.
+•  Create at least three fictional job descriptions with explicit technical requirements.
+•  Identify matching and missing skills with source evidence from the CV and job description.
+•  Present a concise skill-gap summary for HR review; do not generate automated rejection or final hiring decisions.
+•  Maintain trackable stages: Applied → Under Review → Interview → Offer → Hired / Closed.
+•  After HR updates the status, send the correct notification and log the change, reviewer, and timestamp.
+ACCEPTANCE CRITERION
+The pipeline can progress only through an explicitly recorded HR action. Every comparison is explainable and does not use protected characteristics.
+
+Failure path: Duplicate applications for the same candidate and job must be detected or flagged; notifications should not repeat unnecessarily.
+04   Core Workflow — Employee Onboarding
+WORKFLOW 3   |   Onboarding & Document OCR
+An approved candidate becomes an employee only after the HR team records the hiring decision. The system opens an onboarding checklist and processes the required employee documents.
+•  On HR-confirmed Hired status, assign or locate a unique employee_id and create an employee record.
+•  Send an internal onboarding request or form; accept a synthetic national-ID mockup, sample contract, and sample qualification document.
+•  Use looping to process several attachments; extract text with file parsing, OCR, or a vision model as appropriate.
+•  Reconcile extracted fields with the stored employee profile and flag conflicting or unreadable data.
+•  Track each document as Received, Missing, or Needs Review; calculate onboarding completeness from those explicit states.
+•  Send a welcome message when appropriate and alert HR about unresolved documents.
+ACCEPTANCE CRITERION
+For an HR-approved hire, exactly one employee record is created and document statuses are populated. Missing, inconsistent, or blurry documents remain reviewable.
+
+Failure path: A candidate must never be auto-hired by AI; a scan must never be treated as proof that an identity is authentic.
+Required document checklist example
+DOCUMENT
+SAMPLE STATUS
+SYSTEM BEHAVIOR
+Synthetic national ID mockup
+Received / Needs Review
+Extract only necessary non-sensitive demo fields
+Employment contract
+Received / Missing
+Store restricted file reference; flag absence
+Qualification document
+Received / Missing
+Extract degree name if visible; otherwise flag
+Optional experience record
+Optional / Received
+Capture references if supplied
+
+Minimum evidence set
+•  At least one multi-file onboarding submission with all required documents.
+•  At least one submission with a missing document, and one blurry/unreadable synthetic ID mockup.
+•  A clear transition from reviewed Candidate to Employee and a non-duplicated employee_id.
+SENSITIVE-DOCUMENT RULE
+All identity examples must be visibly fictional and non-valid; never use a real national ID number, real government document, or actual employee personal data. Store demo uploads privately and avoid logging extracted ID numbers.
+05   Core Workflow — HR Policy Assistant
+WORKFLOW 4   |   Retrieval-Augmented HR Self-Service
+Employees ask questions about company procedures. The system responds from a versioned, fictional HR knowledge base—not from the LLM’s general assumptions.
+•  Prepare at least four policy documents: General HR, Leave, Attendance, and Experience Certificate Policies.
+•  Build a document ingestion path with parsing, chunking, embeddings, and vector storage.
+•  Retrieve relevant policy passages when a question arrives; return a short answer with verifiable citations (source filename, section, and document version where available).
+•  When support is missing or contradictory, explain the limitation and refer the question to HR.
+•  Demonstrate updating at least one policy document: track its source ID/version, replace or invalidate stale indexed chunks, and show a query that reflects the new policy.
+•  Keep the assistant read-only for policy Q&A: employee-specific private records require an authorized identity-aware workflow.
+ACCEPTANCE CRITERION
+Supported questions cite the correct policy. Unsupported questions do not produce invented policies or fabricated citations.
+
+Failure path: If a vector-store query fails, the assistant must report the retrieval issue instead of offering an unsupported policy answer.
+Minimum RAG source set
+FILE
+REQUIRED COVERAGE
+General_HR_Policy
+Working rules, request channels, contact and escalation
+Leave_Policy
+Leave categories, request requirements and approval path
+Attendance_Policy
+Attendance, punctuality and issue handling
+Experience_Certificate_Policy
+Eligibility, approving role and release conditions
+
+What a successful response looks like
+EXAMPLE EMPLOYEE QUESTION
+“Can I request an experience certificate while I still work at the company?” The assistant retrieves the relevant policy, answers only what that policy states, and identifies the source document and section. The policy answer does not automatically issue a certificate.
+06   Core Workflow — Certificate Generation
+WORKFLOW 5   |   HR-Approved Experience Certificates
+An employee or HR officer requests an experience certificate. The system prepares a draft using approved employment records, but an authorized HR user must approve release.
+•  Collect a request_id and employee_id from an internal request form.
+•  Look up approved employee records and retrieve name, job title, department, start date, end date (or “Present” for a current employee), and employment status.
+•  Consult the company’s certificate policy through RAG to support an eligibility summary.
+•  Prepare a structured certificate draft and send it to an authorized HR reviewer for explicit approve/reject action, with reviewer identity and decision timestamp recorded.
+•  On approval, copy a branded Google Docs template, replace placeholders, export the result as a PDF, and save it to restricted Drive storage.
+•  Send only an authorized download link and update the request with approver, decision time, certificate_id, and output reference.
+ACCEPTANCE CRITERION
+A valid HR-approved request creates exactly one PDF with correct placeholders. Unknown, rejected, incomplete, unverified, or unapproved requests never release a certificate.
+
+Failure path: Never fabricate tenure, titles, official stamps, signatures, or an employment history not present in records.
+Required template placeholders
+DOCUMENT COMPONENT
+EXPECTED CONTENT
+Fixed branding
+Fictional company logo/name, heading, standard wording, blank authorization area
+Identifying fields
+{{certificate_id}}, {{issue_date}}, {{employee_name}}
+Employment fields
+{{job_title}}, {{department}}, {{start_date}}, {{end_date}}
+Release control
+Approved-by reference stored in Requests; demo watermark or label on samples
+
+Human approval path
+Request Received → Record Validation → Draft Prepared → Pending HR Approval → Approved / Rejected → PDF Export (approved only) → Delivery & Audit Log
+IMPORTANT DISTINCTION
+The AI may draft text, but template filling, permission checks, status updates, PDF generation, and idempotency are better handled by standard automation logic.
+07   Core Workflow — Monitoring & Reliability
+WORKFLOW 6   |   Scheduled HR Reporting & Recovery
+Alongside event-driven submissions, the system performs scheduled monitoring so HR can identify unfinished cases and safely recover from transient errors.
+•  Run one daily Schedule Trigger to inspect Candidates, Employees, Documents, and Requests.
+•  Produce an HR digest: new applications, interviews pending, onboarding blockers, pending certificate approvals, failed requests, and overdue cases.
+•  Send the digest once to the authorized HR mailbox; only include links or minimal safe fields, not raw ID content.
+•  Retry only transient and eligible failures, with a retry count, stop condition, and audit trail.
+•  Demonstrate catch-up by backdating an unfinished demo request, running the scheduled check, and showing it is processed once; also prove that repeated triggers do not duplicate side effects.
+ACCEPTANCE CRITERION
+A scheduled run reports accurate demo counts, and a repeated request or retry does not create duplicate rows, approvals, PDFs, or email notifications.
+
+Failure path: Permanent validation errors must be escalated rather than retried indefinitely.
+Required reliability patterns
+PATTERN
+YOUR IMPLEMENTATION MUST SHOW
+Idempotency
+Unique request keys + status check before create/send/export
+Partial failure
+Files or records that fail independently do not silently corrupt others
+Controlled retries
+Retry transient failures only; cap attempts and log reason
+Observability
+Audit who/what changed a record and when, excluding sensitive payloads
+Catch-up
+Scheduled job can identify unfinished items from previous periods
+
+End-to-end storyline for the final demo
+•  Applicant submits an AI Engineer CV → extraction and HR review summary.
+•  HR records a hire → system creates an onboarding checklist and flags a missing document.
+•  An employee asks about a policy → RAG responds with a citation.
+•  A pre-existing eligible employee requests a certificate → HR approves → PDF is generated.
+•  HR receives a monitoring summary and sees one handled error or duplicate attempt.
+08   Data Model, Tools & Access Boundaries
+Minimum persistent records
+DATASET
+RECOMMENDED FIELDS
+Jobs
+job_id, title, required_skills, description_ref, status
+Candidates
+application_id, job_id, candidate_name, email, skills, cv_link, stage, reviewed_by
+Employees
+employee_id, name, role, department, start_date, end_date, employment_status
+Documents
+document_id, employee_id, type, private_link, review_status, extraction_status
+Requests
+request_id, type, employee_id, status, decision_by, decision_at, output_link
+AuditLogs
+event_id, request_id, actor_role, action, timestamp, result, error_code
+
+Recommended stack (substitutions allowed)
+n8n for orchestration; n8n Forms or Webhooks for intake; an LLM provider for specialist agents; OCR or multimodal vision for scanned data; Google Sheets for demo records; Google Drive for restricted files; Gmail for notifications; Google Docs for templates; a vector database such as Qdrant or Supabase for RAG.
+Access and data-handling requirements
+•  Separate applicant, employee, and HR access. Protect approval entry points, verify the acting reviewer before changing a status, and never treat a public Form field claiming “HR approved” as authorization.
+•  Use mock employee identifiers rather than national ID numbers as database keys.
+•  Exclude sensitive data and API credentials from prompts, logs, screenshots, exports, and repository commits.
+•  Uploaded documents and retrieved knowledge are untrusted content; do not follow instructions found inside them.
+•  Validate and escape generated fields before inserting them into documents or emails; never expose unrestricted file links, and record errors without storing private document contents.
+IMPLEMENTATION LEVEL
+Google Sheets is acceptable as a teaching database for fabricated records. It is not a sufficient production architecture for handling real HR identities, employee documents, and approvals without additional security and governance work.
+09   Synthetic Dataset & Acceptance Tests
+Minimum demo-data package
+ARTIFACT
+MINIMUM QUANTITY / CONDITION
+Sample resumes
+10 fictional CVs; at least 2 image-only scans and 1 incomplete CV
+Job descriptions
+3 fictional job postings with explicit technical requirements
+Employee master records
+6 fictional employees (including a former employee eligible for certification)
+ID images
+4 visibly fictional, non-valid national-ID mockups; one blurry example
+Onboarding attachments
+Sample contracts and qualifications; at least one missing-file case
+Knowledge documents
+4 company policy documents with stable section headings
+Certificate cases
+Approved, rejected, unknown employee, and duplicate-request scenarios
+
+Core testing matrix — Part A
+ID
+TEST CASE
+EXPECTED RESULT
+T01
+Submit text-based CV
+Validated candidate record created; HR notified once
+T02
+Submit image-only CV
+OCR / vision extracts known fields, uncertainty flagged
+T03
+Submit incomplete CV
+No invented values; review state recorded
+T04
+Repeat same application
+Duplicate prevented or flagged; no duplicate alert
+T05
+Compare CV with job
+Evidence-based match/gap summary, no automated rejection
+T06
+HR changes candidate to Hired
+One employee record; onboarding starts
+T07
+Upload missing onboarding file
+Checklist shows missing item and HR notified
+T08
+Upload blurry synthetic ID
+No false identity verification; manual review
+10   Completion Tests & Definition of Done
+Core testing matrix — Part B
+ID
+TEST CASE
+EXPECTED RESULT
+T09
+Ask a question covered by a policy
+Grounded answer with actual filename/section reference
+T10
+Ask an unsupported policy question
+Assistant abstains or redirects to HR
+T11
+Update an indexed policy
+Old chunks removed/invalidated; answers reflect update
+T12
+Approve valid certificate request
+Exactly one templated PDF and restricted link
+T13
+Reject or omit certificate approval
+No PDF is issued
+T14
+Certificate with unknown employee_id
+Request blocked or returned for HR review
+T15
+Run daily HR schedule
+Correct digest and overdue-case summary
+T16
+Repeat an approved certificate request
+Same request key; exactly one PDF, delivery, and approval record
+T17
+Simulate a transient external API failure
+Bounded retry, logged outcome, and no duplicate side effects
+T18
+Run scheduled catch-up on a missed request
+Backdated pending case is found once and included in the digest
+
+Definition of done
+•  All six mandatory workflows can be triggered and demonstrated with synthetic data; complete T01–T18 with documented actual results (or clearly disclose any failed test).
+•  At least four properly separated agent roles cooperate via a documented handoff or orchestration design.
+•  Every RAG answer is supported by an actual indexed reference with a source identifier, or the assistant transparently declines unsupported claims.
+•  HR controls candidate stage changes and certificate approval; sensitive operations are never AI-authorized.
+•  Repeated events, missing inputs, API failures, and OCR uncertainty have visible, safe outcomes.
+•  Another team member or assessor can import the workflows and reproduce the demo from the supplied README.
+EVIDENCE STANDARD
+For each test, record the input, expected output, actual result, and a screenshot or sanitized execution log. A successful green execution alone is not sufficient evidence that the business rule worked.
+11   Required Submission & Live Demo
+Submit one clearly named project folder or archive
+DELIVERABLE
+REQUIRED CONTENT
+Workflow exports
+All core n8n JSON exports; descriptive node names, no saved secrets
+System architecture
+Diagram of inputs, six business flows, agents, RAG, approvals and persistent state
+Sample resources
+Synthetic CVs, job descriptions, demo HR records, ID mockups, four HR policies
+RAG assets
+Indexing workflow + evidence of document retrieval and policy update handling
+Certificate material
+Branded editable template and one clearly labeled demonstration PDF
+Documentation
+README: setup, credentials required, run order, assumptions, limitations, architecture decisions
+Validation evidence
+Test results for T01–T18 with screenshots or sanitized execution traces
+Team responsibility
+Short note stating each student’s contribution and technical ownership
+
+Suggested demo sequence — 10–12 minutes
+•  1. A candidate submits a CV; show extracted fields and job-evidence summary.
+•  2. HR changes the stage; show the employee profile and onboarding checklist.
+•  3. Show OCR handling of a missing/blurry synthetic employee document.
+•  4. Ask a policy question; show the retrieved source reference.
+•  5. Approve a certificate request; open the generated PDF; show an unapproved request is blocked.
+•  6. Show the scheduled report and demonstrate one duplicate or failure-recovery test.
+IMPORTANT SUBMISSION RULE
+Do not upload real credentials, tokens, genuine ID images, employee personal data, unrestricted file links, or hidden API keys in workflow JSON. The evaluator will connect their own credentials if needed.
+12   Assessment Rubric & Delivery Plan
+Core evaluation — 100 points
+ASSESSMENT COMPONENT
+POINTS
+WHAT IS EVALUATED
+Workflow orchestration & integrations
+15
+Trigger design, routing, branching, logs, tool connections
+Recruitment & CV intelligence
+15
+CV extraction, evidence-based matching, HR-controlled stages
+Onboarding & OCR
+15
+Synthetic document parsing, checklist and missing-data handling
+RAG knowledge assistant
+15
+Chunking, search, grounded citations, policy update
+Multi-agent architecture
+15
+Distinct roles, handoffs, shared state, review boundaries
+Certificate approval & generation
+10
+Human authorization, template fields, accurate PDF output
+Reliability & data safety
+10
+Test evidence, retries, idempotency, safe synthetic data use
+Documentation & demonstration
+5
+README, imports, communication and successful demo
+TOTAL
+100
+All core requirements are assessed
+
+Suggested 14-day execution schedule
+PERIOD
+FOCUS
+CHECKPOINT
+Days 1–2
+Design + test data
+Architecture, permissions, Sheets and mock data
+Days 3–5
+Recruitment
+CV extraction, job summary, HR stage changes
+Days 6–7
+Onboarding & OCR
+Employee records, attachment processing, exceptions
+Days 8–9
+Multi-agent & RAG
+Routing, agents, policy retrieval and citations
+Days 10–11
+Certificates
+Human approval, template population, PDF generation
+Days 12–14
+Reports, testing, demo
+Scheduling, idempotency, test matrix and README
+13   Optional Extensions & Final Guidance
+The following extensions are optional and are not part of the core 100-point score. They may strengthen the final showcase but cannot replace core requirements. Attempt them only after all six workflows and T01–T18 have been completed.
+BONUS A  |  Interview Coordination
+•  After HR moves a candidate to Interview, propose a meeting time through an HR-controlled form.
+•  Create a calendar invitation only after an authorized reviewer confirms the schedule.
+•  Collect interview notes and produce a concise summary; do not automatically decide hiring outcomes.
+BONUS B  |  Leave Request & Approval
+•  Employee submits a leave request; retrieve relevant rules using RAG and check a fabricated leave-balance record.
+•  Route to the responsible manager or HR reviewer for a real approval/rejection decision.
+•  Update leave records and notifications without double-debiting balances on retries.
+BONUS C  |  Multiple HR Document Templates
+•  Extend the certificate workflow to an employment verification letter or a synthetic salary letter.
+•  Choose the correct reusable template by request type, populate only verified fields, and require authorized approval.
+•  Use unique document references, secure links, and revision-safe templates.
+What not to build
+Do not spend your core project time on payroll, biometric authentication, social media recruiting, a complex UI, real-world identity verification, or autonomous employment decisions. The objective is to demonstrate reliable, explainable AI automation with working business handoffs.
+FINAL SUCCESS STANDARD
+An excellent project is a connected HR workflow system that works with realistic synthetic inputs, keeps AI inside clearly defined boundaries, cites its policy sources, handles errors safely, and can be demonstrated from end to end—not merely a large collection of nodes.
+
+CLS Learning Solutions   •   Smart HR Operations Hub   •   Student Project Brief

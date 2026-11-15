@@ -1,0 +1,345 @@
+{
+  "name": "05 - HR-Approved Experience Certificates",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "certificate-request",
+        "formTitle": "NexusCore - Experience Certificate Request",
+        "formDescription": "Official portal for requesting an employment experience certificate.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Employee ID",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Request Reason",
+              "fieldType": "text",
+              "requiredField": false
+            }
+          ]
+        }
+      },
+      "id": "wf5-form-trigger",
+      "name": "Certificate Request Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": "Employees",
+        "filters": {
+          "employee_id": "={{ $json['Employee ID'] }}"
+        }
+      },
+      "id": "wf5-lookup-emp",
+      "name": "Lookup Verified Employee Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.name }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "wf5-check-exists",
+      "name": "If Employee Record Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "Unknown Employee ID. Certificate request blocked and flagged for HR audit.",
+        "errorDetails": "UNKNOWN_EMPLOYEE_ID"
+      },
+      "id": "wf5-unknown-emp",
+      "name": "Unknown Employee Handler",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        920,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const emp = $json;\nconst start = new Date(emp.start_date);\nconst end = emp.end_date === 'Present' ? new Date() : new Date(emp.end_date);\nconst tenureMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());\nconst isEligible = tenureMonths >= 6;\n\nreturn {\n  employee_id: emp.employee_id,\n  employee_name: emp.name,\n  job_title: emp.role,\n  department: emp.department,\n  start_date: emp.start_date,\n  end_date: emp.end_date,\n  status: emp.employment_status,\n  tenure_months: tenureMonths,\n  is_eligible: isEligible,\n  request_id: `REQ-2026-${Math.floor(1000 + Math.random() * 9000)}`\n};"
+      },
+      "id": "wf5-eligibility-check",
+      "name": "RAG Eligibility Check (Tenure >= 6 Months)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "path": "hr-cert-approval",
+        "formTitle": "HR Official Certificate Authorization",
+        "formDescription": "Review verified employment record. Approve or Reject certificate release.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Reviewer Name",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Approval Decision",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve"
+                  },
+                  {
+                    "option": "Reject"
+                  }
+                ]
+              },
+              "requiredField": true
+            }
+          ]
+        }
+      },
+      "id": "wf5-hr-gate",
+      "name": "HR Human Authorization Sign-Off",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json['Approval Decision'] }}",
+              "value2": "Approve"
+            }
+          ]
+        }
+      },
+      "id": "wf5-if-approved",
+      "name": "If HR Approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const certId = `CERT-2026-${Math.floor(1000 + Math.random() * 9000)}`;\nreturn {\n  certificate_id: certId,\n  issue_date: new Date().toISOString().split('T')[0],\n  employee_name: $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.employee_name,\n  job_title: $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.job_title,\n  department: $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.department,\n  start_date: $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.start_date,\n  end_date: $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.end_date,\n  approved_by: $json['Reviewer Name'],\n  pdf_link: `drive/restricted/certificates/${certId}.pdf`\n};"
+      },
+      "id": "wf5-gen-pdf-data",
+      "name": "Populate Branded Template & Generate PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Requests",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "request_id": "={{ $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.request_id }}",
+            "type": "Experience_Certificate",
+            "employee_id": "={{ $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.employee_id }}",
+            "status": "Approved",
+            "decision_by": "={{ $json.approved_by }}",
+            "decision_at": "={{ $now.toISO() }}",
+            "output_link": "={{ $json.pdf_link }}"
+          }
+        }
+      },
+      "id": "wf5-record-request",
+      "name": "Update Requests Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1880,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "employee@nexuscore-tech.com",
+        "subject": "Your Official Experience Certificate is Ready",
+        "message": "=Your experience certificate has been approved and issued.\n\nCertificate ID: {{ $('Populate Branded Template & Generate PDF').item.json.certificate_id }}\nAuthorized Download Link: {{ $('Populate Branded Template & Generate PDF').item.json.pdf_link }}"
+      },
+      "id": "wf5-send-cert",
+      "name": "Send Authorized Download Link",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2120,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Requests",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "request_id": "={{ $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.request_id }}",
+            "type": "Experience_Certificate",
+            "employee_id": "={{ $('RAG Eligibility Check (Tenure >= 6 Months)').item.json.employee_id }}",
+            "status": "Rejected",
+            "decision_by": "={{ $json['Reviewer Name'] }}",
+            "decision_at": "={{ $now.toISO() }}",
+            "output_link": "NONE"
+          }
+        }
+      },
+      "id": "wf5-reject-request",
+      "name": "Record Rejection in Requests Table",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1640,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Certificate Request Form": {
+      "main": [
+        [
+          {
+            "node": "Lookup Verified Employee Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Verified Employee Record": {
+      "main": [
+        [
+          {
+            "node": "If Employee Record Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Employee Record Exists": {
+      "main": [
+        [
+          {
+            "node": "RAG Eligibility Check (Tenure >= 6 Months)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unknown Employee Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Eligibility Check (Tenure >= 6 Months)": {
+      "main": [
+        [
+          {
+            "node": "HR Human Authorization Sign-Off",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR Human Authorization Sign-Off": {
+      "main": [
+        [
+          {
+            "node": "If HR Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If HR Approved": {
+      "main": [
+        [
+          {
+            "node": "Populate Branded Template & Generate PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Rejection in Requests Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Populate Branded Template & Generate PDF": {
+      "main": [
+        [
+          {
+            "node": "Update Requests Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Requests Table": {
+      "main": [
+        [
+          {
+            "node": "Send Authorized Download Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
