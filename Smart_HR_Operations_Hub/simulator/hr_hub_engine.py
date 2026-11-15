@@ -10,8 +10,10 @@ import re
 import csv
 import math
 from datetime import datetime, timezone
-import pymupdf
-from PIL import Image
+try:
+    import pymupdf
+except Exception:
+    pymupdf = None
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -356,6 +358,8 @@ class HRHubEngine:
         Demonstrates policy update handling (T11).
         """
         self.rag_index = []
+        if not os.path.exists(POLICIES_DIR):
+            return
         for fname in os.listdir(POLICIES_DIR):
             if not fname.endswith('.md'):
                 continue

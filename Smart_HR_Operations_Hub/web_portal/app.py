@@ -369,10 +369,16 @@ def run_tests_endpoint():
 # -------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def index_page():
-    html_path = os.path.join(os.path.dirname(__file__), "index.html")
-    if os.path.exists(html_path):
-        with open(html_path, "r", encoding="utf-8") as f:
-            return f.read()
+    candidate_paths = [
+        os.path.join(os.path.dirname(__file__), "index.html"),
+        os.path.join(BASE_DIR, "web_portal", "index.html"),
+        os.path.join(os.getcwd(), "Smart_HR_Operations_Hub", "web_portal", "index.html"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Smart_HR_Operations_Hub", "web_portal", "index.html"))
+    ]
+    for p in candidate_paths:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return f.read()
     return "<h1>NexusCore Smart HR Hub is running!</h1>"
 
 if __name__ == "__main__":

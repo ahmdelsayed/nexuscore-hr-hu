@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "Smart_HR_Operations_Hub/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.py"
+    }
+  ]
+}
