@@ -1,2 +1,2 @@
 [tool.vercel]
-entrypoint = "Smart_HR_Operations_Hub/web_portal/app.py:app"
+entrypoint = "Smart_HR_Operations_Hub.web_portal.app:app"
