@@ -16,6 +16,11 @@ from hr_hub_engine import HRHubEngine, BASE_DIR, DATA_DIR
 
 def reset_test_databases():
     """Resets CSV databases to pristine state before running test suite."""
+    if (os.environ.get("DATABASE_URL") or "").strip():
+        raise RuntimeError(
+            "Acceptance tests reset demo data; unset DATABASE_URL before running them."
+        )
+
     # 1. Jobs.csv
     jobs = [
         {'job_id': 'JD-101', 'title': 'Senior AI/ML Engineer', 'required_skills': 'Python, PyTorch, LangChain, RAG, FastAPI, Docker, Vector Databases', 'description_ref': 'synthetic_dataset/job_descriptions/JD-101_Senior_AI_Engineer.md', 'status': 'Open'},

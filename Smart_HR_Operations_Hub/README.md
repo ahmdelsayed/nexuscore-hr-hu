@@ -165,6 +165,30 @@ To run or inspect the workflows inside your self-hosted or cloud n8n instance:
    - **Gmail:** For HR notifications and candidate emails.
    - **Qdrant / Vector Store:** For dense embedding retrieval in Workflow 4.
 
+### Method D: Vercel Deployment with Persistent Data
+
+The local simulator stores its records in CSV files. Vercel functions do not
+provide durable writable storage, so configure a PostgreSQL database before
+using the portal for records that must survive deployments or cold starts.
+
+1. Create a PostgreSQL database with a provider such as Neon or Supabase.
+2. In Vercel, add its connection string as the `DATABASE_URL` environment
+   variable for Production (and Preview if needed). Do not commit the URL or
+   place it in frontend code.
+3. Redeploy the project, then check `/api/health`. It should report
+   `"storage": "postgresql"`.
+
+On its first database connection, the app creates its tables and inserts
+fictional demo records only. It does not import the repository's CSV files or
+their local paths. Without `DATABASE_URL`, the portal continues to use local
+CSV storage and reports `"storage": "local_csv"`; that mode is for local demos,
+not durable Vercel data.
+Approved certificate PDFs are also stored in PostgreSQL so their download links
+continue to work across serverless instances.
+
+The acceptance-test runner resets local CSV data, so it is blocked when
+`DATABASE_URL` is set. Run the tests locally with that variable unset.
+
 ---
 
 ## 4. Acceptance Testing Matrix (T01 – T18)

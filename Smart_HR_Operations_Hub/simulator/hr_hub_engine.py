@@ -41,6 +41,276 @@ STOP_WORDS = {
     "with", "won't", "would", "you", "your", "yours", "yourself", "yourselves"
 }
 
+REMOTE_DEMO_SEED = {
+    "jobs": [
+        {
+            "job_id": "JD-101",
+            "title": "Senior AI/ML Engineer",
+            "required_skills": "Python, PyTorch, LangChain, RAG, FastAPI, Docker, Vector Databases",
+            "description_ref": "synthetic_dataset/job_descriptions/JD-101_Senior_AI_Engineer.md",
+            "status": "Open",
+        },
+        {
+            "job_id": "JD-102",
+            "title": "Full-Stack Python/React Developer",
+            "required_skills": "Python, React, TypeScript, Node.js, PostgreSQL, REST APIs, Tailwind CSS",
+            "description_ref": "synthetic_dataset/job_descriptions/JD-102_Full_Stack_Developer.md",
+            "status": "Open",
+        },
+        {
+            "job_id": "JD-103",
+            "title": "HR Operations Specialist",
+            "required_skills": "HRIS, Labor Law, Talent Acquisition, Employee Onboarding, Excel, Reporting",
+            "description_ref": "synthetic_dataset/job_descriptions/JD-103_HR_Operations_Specialist.md",
+            "status": "Open",
+        },
+    ],
+    "candidates": [
+        {
+            "application_id": "APP-DEMO-001",
+            "job_id": "JD-101",
+            "candidate_name": "Demo Candidate",
+            "email": "candidate@example.com",
+            "skills": "Python, PyTorch, LangChain, RAG, FastAPI, Docker",
+            "cv_link": "synthetic_dataset/resumes/demo-candidate.pdf",
+            "stage": "Under Review",
+            "reviewed_by": "Pending HR Review",
+        },
+    ],
+    "employees": [
+        {
+            "employee_id": "EMP-001",
+            "name": "Demo Active Employee",
+            "role": "Senior AI Engineer",
+            "department": "Engineering",
+            "start_date": "2023-01-15",
+            "end_date": "Present",
+            "employment_status": "Active",
+        },
+        {
+            "employee_id": "EMP-003",
+            "name": "Demo Onboarding Employee",
+            "role": "Full-Stack Developer",
+            "department": "Engineering",
+            "start_date": "2024-09-01",
+            "end_date": "Present",
+            "employment_status": "Active",
+        },
+        {
+            "employee_id": "EMP-005",
+            "name": "Demo Former Employee",
+            "role": "Senior DevOps Engineer",
+            "department": "Infrastructure",
+            "start_date": "2020-02-01",
+            "end_date": "2024-08-31",
+            "employment_status": "Former",
+        },
+        {
+            "employee_id": "EMP-006",
+            "name": "Demo Recent Hire",
+            "role": "Junior Marketing Associate",
+            "department": "Marketing",
+            "start_date": "2026-10-01",
+            "end_date": "Present",
+            "employment_status": "Active",
+        },
+    ],
+    "documents": [
+        {
+            "document_id": "DOC-DEMO-001",
+            "employee_id": "EMP-001",
+            "type": "National_ID",
+            "private_link": "synthetic_dataset/id_mockups/demo-id.png",
+            "review_status": "Needs Review",
+            "extraction_status": "Synthetic demo document",
+        },
+    ],
+    "requests": [
+        {
+            "request_id": "REQ-2026-CERT-005",
+            "type": "Experience_Certificate",
+            "employee_id": "EMP-005",
+            "status": "Pending",
+            "decision_by": "",
+            "decision_at": "",
+            "output_link": "NONE",
+        },
+    ],
+    "auditlogs": [
+        {
+            "event_id": "EVT-DEMO-001",
+            "request_id": "APP-DEMO-001",
+            "actor_role": "System",
+            "action": "DEMO_DATA_INITIALIZED",
+            "timestamp": "2025-01-01T00:00:00+00:00",
+            "result": "Success",
+            "error_code": "NONE",
+        },
+    ],
+}
+
+
+class PostgresStorage:
+    def __init__(self, database_url):
+        self.database_url = database_url.strip()
+        if self.database_url.startswith("postgres://"):
+            self.database_url = "postgresql://" + self.database_url[len("postgres://"):]
+        self._initialize()
+
+    def _connect(self):
+        try:
+            import psycopg
+        except ImportError as exc:
+            raise RuntimeError(
+                "DATABASE_URL is set, but psycopg is not installed."
+            ) from exc
+        return psycopg.connect(self.database_url, connect_timeout=5)
+
+    @staticmethod
+    def _dataset_name(filepath):
+        dataset = os.path.splitext(os.path.basename(filepath))[0].lower()
+        if dataset not in REMOTE_DEMO_SEED:
+            raise ValueError(f"Unsupported data file: {filepath}")
+        return dataset
+
+    def _initialize(self):
+        try:
+            from psycopg.types.json import Jsonb
+        except ImportError as exc:
+            raise RuntimeError(
+                "DATABASE_URL is set, but psycopg is not installed."
+            ) from exc
+
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(917203211)")
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS nexuscore_hr_rows (
+                        id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                        dataset TEXT NOT NULL,
+                        row_data JSONB NOT NULL
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS nexuscore_hr_rows_dataset_id
+                    ON nexuscore_hr_rows (dataset, id)
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS nexuscore_hr_metadata (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS nexuscore_hr_files (
+                        filename TEXT PRIMARY KEY,
+                        content BYTEA NOT NULL
+                    )
+                    """
+                )
+                cursor.execute(
+                    "SELECT value FROM nexuscore_hr_metadata WHERE key = %s",
+                    ("demo_seed_v1",),
+                )
+                if cursor.fetchone() is not None:
+                    return
+
+                cursor.execute("SELECT EXISTS (SELECT 1 FROM nexuscore_hr_rows)")
+                has_existing_rows = cursor.fetchone()[0]
+                if not has_existing_rows:
+                    for dataset, rows in REMOTE_DEMO_SEED.items():
+                        for row in rows:
+                            cursor.execute(
+                                """
+                                INSERT INTO nexuscore_hr_rows (dataset, row_data)
+                                VALUES (%s, %s)
+                                """,
+                                (dataset, Jsonb(row)),
+                            )
+                cursor.execute(
+                    """
+                    INSERT INTO nexuscore_hr_metadata (key, value)
+                    VALUES (%s, %s)
+                    ON CONFLICT (key) DO NOTHING
+                    """,
+                    ("demo_seed_v1", "initialized"),
+                )
+
+    def read_rows(self, filepath):
+        dataset = self._dataset_name(filepath)
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT row_data
+                    FROM nexuscore_hr_rows
+                    WHERE dataset = %s
+                    ORDER BY id
+                    """,
+                    (dataset,),
+                )
+                rows = cursor.fetchall()
+        return [row[0] for row in rows]
+
+    def append_row(self, filepath, row_dict):
+        from psycopg.types.json import Jsonb
+
+        dataset = self._dataset_name(filepath)
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO nexuscore_hr_rows (dataset, row_data)
+                    VALUES (%s, %s)
+                    """,
+                    (dataset, Jsonb(row_dict)),
+                )
+
+    def update_row(self, filepath, key, value, updates):
+        from psycopg.types.json import Jsonb
+
+        dataset = self._dataset_name(filepath)
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE nexuscore_hr_rows
+                    SET row_data = row_data || %s
+                    WHERE dataset = %s AND row_data ->> %s = %s
+                    """,
+                    (Jsonb(updates), dataset, key, str(value)),
+                )
+                return cursor.rowcount > 0
+
+    def save_file(self, filename, content):
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO nexuscore_hr_files (filename, content)
+                    VALUES (%s, %s)
+                    ON CONFLICT (filename) DO UPDATE SET content = EXCLUDED.content
+                    """,
+                    (filename, content),
+                )
+
+    def read_file(self, filename):
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT content FROM nexuscore_hr_files WHERE filename = %s",
+                    (filename,),
+                )
+                row = cursor.fetchone()
+        return row[0] if row else None
+
 
 class HRHubEngine:
     def __init__(self):
@@ -50,21 +320,32 @@ class HRHubEngine:
         self.documents_file = os.path.join(DATA_DIR, "Documents.csv")
         self.requests_file = os.path.join(DATA_DIR, "Requests.csv")
         self.audit_file = os.path.join(DATA_DIR, "AuditLogs.csv")
+        database_url = (os.environ.get("DATABASE_URL") or "").strip()
+        self.storage = PostgresStorage(database_url) if database_url else None
         
         # In-memory RAG Index: list of dicts {source, section, version, text}
         self.rag_index = []
         self.index_policies(version_filter="1.0")
 
     # ---------------------------------------------------------
-    # Helper: CSV persistence
+    # Helper: Persistent data storage
     # ---------------------------------------------------------
+    @property
+    def using_database(self):
+        return self.storage is not None
+
     def _read_csv(self, filepath):
+        if self.storage:
+            return self.storage.read_rows(filepath)
         if not os.path.exists(filepath):
             return []
         with open(filepath, 'r', encoding='utf-8') as f:
             return list(csv.DictReader(f))
 
     def _append_csv(self, filepath, row_dict):
+        if self.storage:
+            self.storage.append_row(filepath, row_dict)
+            return
         fieldnames = list(row_dict.keys())
         file_exists = os.path.exists(filepath)
         with open(filepath, 'a', newline='', encoding='utf-8') as f:
@@ -72,6 +353,29 @@ class HRHubEngine:
             if not file_exists or os.path.getsize(filepath) == 0:
                 writer.writeheader()
             writer.writerow(row_dict)
+
+    def _update_csv_row(self, filepath, key, value, updates):
+        if self.storage:
+            return self.storage.update_row(filepath, key, value, updates)
+
+        rows = self._read_csv(filepath)
+        for row in rows:
+            if row.get(key) == value:
+                row.update(updates)
+                with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+                    writer.writeheader()
+                    writer.writerows(rows)
+                return True
+        return False
+
+    @staticmethod
+    def _stored_reference(filepath):
+        absolute_path = os.path.abspath(filepath)
+        relative_path = os.path.relpath(absolute_path, BASE_DIR)
+        if relative_path == os.pardir or relative_path.startswith(os.pardir + os.sep):
+            return os.path.basename(filepath)
+        return relative_path.replace(os.sep, "/")
 
     def _log_audit(self, request_id, actor_role, action, result="Success", error_code="NONE"):
         event = {
@@ -158,7 +462,7 @@ class HRHubEngine:
             "candidate_name": candidate_name,
             "email": extracted_email or "[MISSING_EMAIL]",
             "skills": ", ".join(extracted_skills) if extracted_skills else "[NONE_EXTRACTED]",
-            "cv_link": cv_path,
+            "cv_link": self._stored_reference(cv_path),
             "stage": stage,
             "reviewed_by": "Pending HR Review"
         }
@@ -244,20 +548,14 @@ class HRHubEngine:
         if new_stage not in valid_stages:
             return {"error": f"Invalid stage: {new_stage}"}
 
-        candidates = self._read_csv(self.candidates_file)
-        updated = False
-        for c in candidates:
-            if c['application_id'] == application_id:
-                c['stage'] = new_stage
-                c['reviewed_by'] = reviewer_name
-                updated = True
-                break
+        updated = self._update_csv_row(
+            self.candidates_file,
+            "application_id",
+            application_id,
+            {"stage": new_stage, "reviewed_by": reviewer_name},
+        )
 
         if updated:
-            with open(self.candidates_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=list(candidates[0].keys()))
-                writer.writeheader()
-                writer.writerows(candidates)
             self._log_audit(application_id, "HR_Manager", f"STAGE_TRANSITION_{new_stage.upper()}", "Success")
             return {"status": "Success", "application_id": application_id, "new_stage": new_stage, "reviewer": reviewer_name}
         return {"error": "Candidate not found"}
@@ -305,7 +603,7 @@ class HRHubEngine:
                 "document_id": f"DOC-ID-{employee_id[-4:]}",
                 "employee_id": employee_id,
                 "type": "National_ID",
-                "private_link": id_card_path,
+                "private_link": self._stored_reference(id_card_path),
                 "review_status": checklist["National_ID"]["status"],
                 "extraction_status": checklist["National_ID"]["extraction"]
             })
@@ -317,7 +615,7 @@ class HRHubEngine:
                 "document_id": f"DOC-CON-{employee_id[-4:]}",
                 "employee_id": employee_id,
                 "type": "Contract",
-                "private_link": contract_path,
+                "private_link": self._stored_reference(contract_path),
                 "review_status": "Received",
                 "extraction_status": "Complete"
             })
@@ -329,7 +627,7 @@ class HRHubEngine:
                 "document_id": f"DOC-DEG-{employee_id[-4:]}",
                 "employee_id": employee_id,
                 "type": "Qualification",
-                "private_link": qualification_path,
+                "private_link": self._stored_reference(qualification_path),
                 "review_status": "Received",
                 "extraction_status": "Complete"
             })
@@ -530,7 +828,13 @@ class HRHubEngine:
 
         # Generate unique certificate
         cert_id = f"CERT-2026-{abs(hash(request_id)) % 9000 + 1000}"
-        out_pdf = os.path.join(TEMPLATES_DIR, f"{cert_id}.pdf")
+        pdf_filename = f"{cert_id}.pdf"
+        if self.storage:
+            import tempfile
+            output_dir = tempfile.gettempdir()
+        else:
+            output_dir = TEMPLATES_DIR
+        out_pdf = os.path.join(output_dir, pdf_filename)
         
         # Pull employee info
         emp_id = request_id.split("-")[-1]
@@ -554,6 +858,13 @@ class HRHubEngine:
             "approved_by": reviewer_name
         }
         render_experience_certificate(out_pdf, cert_data)
+        if self.storage:
+            try:
+                with open(out_pdf, "rb") as certificate_file:
+                    self.storage.save_file(pdf_filename, certificate_file.read())
+            finally:
+                if os.path.exists(out_pdf):
+                    os.remove(out_pdf)
 
         self._append_csv(self.requests_file, {
             "request_id": request_id,
@@ -562,14 +873,14 @@ class HRHubEngine:
             "status": "Approved",
             "decision_by": reviewer_name,
             "decision_at": datetime.now(timezone.utc).isoformat(),
-            "output_link": out_pdf
+            "output_link": pdf_filename if self.storage else out_pdf
         })
         self._log_audit(request_id, "HR_Manager", "CERTIFICATE_APPROVED_AND_ISSUED", "Success")
 
         return {
             "status": "Approved",
             "certificate_id": cert_id,
-            "pdf_link": out_pdf,
+            "pdf_link": pdf_filename if self.storage else out_pdf,
             "pdf_generated": True,
             "approved_by": reviewer_name
         }

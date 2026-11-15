@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -97,6 +97,13 @@ def get_metrics():
         "onboarding_blockers": sum(1 for d in documents if d.get('review_status') in ['Needs Review', 'Missing']),
         "approved_certificates": sum(1 for r in requests if r.get('status') == 'Approved'),
         "pending_certificates": sum(1 for r in requests if r.get('status') == 'Pending')
+    }
+
+@app.get("/api/health")
+def get_health():
+    return {
+        "status": "ok",
+        "storage": "postgresql" if engine.using_database else "local_csv"
     }
 
 @app.get("/api/candidates")
@@ -231,10 +238,21 @@ def cert_authorize(payload: CertAuthorizeModel):
 
 @app.get("/api/download-certificate/{filename}")
 def download_cert(filename: str):
-    file_path = os.path.join(TEMPLATES_DIR, filename)
-    if not os.path.exists(file_path):
+    if os.path.basename(filename) != filename or "\\" in filename:
         raise HTTPException(status_code=404, detail="Certificate file not found")
-    return FileResponse(file_path, media_type="application/pdf", filename=filename)
+
+    file_path = os.path.join(TEMPLATES_DIR, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="application/pdf", filename=filename)
+    if engine.storage:
+        certificate = engine.storage.read_file(filename)
+        if certificate is not None:
+            return Response(
+                content=certificate,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+    raise HTTPException(status_code=404, detail="Certificate file not found")
 
 @app.post("/api/run-daily-digest")
 def run_daily_digest():
@@ -249,6 +267,12 @@ def simulate_retry():
 
 @app.post("/api/run-tests")
 def run_tests_endpoint():
+    if engine.using_database:
+        raise HTTPException(
+            status_code=409,
+            detail="Acceptance tests reset demo data and cannot run against the persistent database."
+        )
+
     # Runs the 18 tests and returns results
     run_acceptance_tests.reset_test_databases()
     results = []
